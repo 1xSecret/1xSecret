@@ -28,6 +28,13 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+# pnpm >=10 verifies dependency freshness before running a script and, on a
+# mismatch, re-installs. In a clean build the node_modules copied from `deps`
+# has no accompanying pnpm store in this stage, so the check decides to purge
+# node_modules and — lacking a TTY to confirm — aborts the build with
+# ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY. Dependencies are already installed
+# with --frozen-lockfile above, so disable the pre-run check and build directly.
+RUN echo 'verify-deps-before-run=false' > .npmrc
 # No DATABASE_URL needed here: every page renders dynamically at request
 # time and config validation only runs at server start (instrumentation.ts).
 RUN pnpm build
