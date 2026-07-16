@@ -1,5 +1,8 @@
-# Dependencies and build output (produced inside the image)
+# Dependencies and build output (produced inside the image).
+# Match nested ones too (e.g. sdk/node_modules) so the build context mirrors a
+# fresh CI checkout — otherwise a local node_modules can mask install issues.
 node_modules
+**/node_modules
 .next
 out
 build
