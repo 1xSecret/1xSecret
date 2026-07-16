@@ -1,0 +1,2 @@
+# Keeps the public/ directory in git. Static assets served at the site root
+# go here (App Router serves the favicon from src/app/favicon.ico instead).

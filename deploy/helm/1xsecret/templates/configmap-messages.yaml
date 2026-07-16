@@ -1,0 +1,15 @@
+{{- /*
+Partial message overrides (<locale>.json), deep-merged over the built-in texts
+and mounted read-only at /app/message-overrides. Only rendered when overrides
+are provided inline and no existing ConfigMap is referenced.
+*/}}
+{{- if and .Values.branding.messageOverrides (not .Values.branding.messagesExistingConfigMap) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "1xsecret.fullname" . }}-messages
+  labels:
+    {{- include "1xsecret.labels" . | nindent 4 }}
+data:
+  {{- toYaml .Values.branding.messageOverrides | nindent 2 }}
+{{- end }}

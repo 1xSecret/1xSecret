@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # corepack is removed from Node 25+; installing it explicitly is
+      # version-proof. package.json pins "packageManager": "pnpm@11.13.1".
+      # Must run before setup-node so the pnpm cache can be resolved.
+      - name: Enable pnpm via corepack
+        run: npm install -g corepack@latest && corepack enable pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      # `next build` runs without DATABASE_URL by design: all configuration is
+      # read at runtime and validated at server start (see docs/ARCHITECTURE.md).
+      # Do not add fake env vars here — a build that needs them is a regression.
+      - name: Build
+        run: pnpm build
+
+      # The MIT-licensed client SDK (workspace package @1xsecret/sdk).
+      - name: SDK typecheck
+        run: pnpm -F @1xsecret/sdk typecheck
+
+      - name: SDK test
+        run: pnpm -F @1xsecret/sdk test
+
+      - name: SDK build
+        run: pnpm -F @1xsecret/sdk build

@@ -1,0 +1,17 @@
+{{- /*
+Rendered when `podDisruptionBudget.enabled` is true, or when it is `auto`
+and more than one replica is configured (see the pdbEnabled helper).
+*/}}
+{{- if include "1xsecret.pdbEnabled" . }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "1xsecret.fullname" . }}
+  labels:
+    {{- include "1xsecret.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "1xsecret.selectorLabels" . | nindent 6 }}
+{{- end }}

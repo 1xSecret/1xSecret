@@ -1,0 +1,168 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "1xsecret Helm chart values",
+  "type": "object",
+  "properties": {
+    "image": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": { "type": "string" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      },
+      "required": ["repository"]
+    },
+    "imagePullSecrets": { "type": "array" },
+    "replicaCount": { "type": "integer", "minimum": 1 },
+    "nameOverride": { "type": "string" },
+    "fullnameOverride": { "type": "string" },
+    "branding": {
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "landingMode": { "enum": ["full", "minimal"] },
+        "showSourceLink": { "type": "boolean" },
+        "sourceUrl": { "type": "string" },
+        "logo": {
+          "type": "object",
+          "properties": {
+            "existingConfigMap": { "type": "string" },
+            "key": { "type": "string" }
+          }
+        },
+        "messageOverrides": { "type": "object" },
+        "messagesExistingConfigMap": { "type": "string" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "properties": {
+        "existingSecret": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "key": { "type": "string" }
+          }
+        },
+        "url": { "type": "string" },
+        "replicaUrls": { "type": "string" }
+      }
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "appUrl": {
+          "description": "Canonical base URL. Empty, or an absolute http(s) URL (config.ts rejects anything else at boot).",
+          "type": "string",
+          "anyOf": [
+            { "const": "" },
+            { "pattern": "^https?://" }
+          ]
+        },
+        "defaultLanguage": {
+          "description": "Default UI language.",
+          "enum": ["en", "de"]
+        },
+        "accessMode": {
+          "description": "DANGEROUS-PUBLIC or SAFEGUARDED. SAFEGUARDED requires config.safeNetworks.",
+          "enum": ["DANGEROUS-PUBLIC", "SAFEGUARDED"]
+        },
+        "safeNetworks": { "type": "string" },
+        "trustedProxies": { "type": "string" },
+        "allowIndexing": { "type": "boolean" },
+        "retentionDays": {
+          "description": "Days to keep read-receipt rows after burn/expiry (config.ts allows 0–3650).",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3650
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "accessMode": { "const": "SAFEGUARDED" } },
+            "required": ["accessMode"]
+          },
+          "then": {
+            "properties": { "safeNetworks": { "type": "string", "minLength": 1 } },
+            "required": ["safeNetworks"]
+          }
+        }
+      ]
+    },
+    "legal": {
+      "type": "object",
+      "properties": {
+        "documents": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "existingConfigMap": { "type": "string" }
+      }
+    },
+    "migrations": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "activeDeadlineSeconds": { "type": "integer", "minimum": 1 },
+        "backoffLimit": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "create": { "type": "boolean" },
+        "automount": { "type": "boolean" },
+        "annotations": { "type": "object" },
+        "name": { "type": "string" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["ClusterIP", "NodePort", "LoadBalancer"] },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "hosts": { "type": "array" },
+        "tls": { "type": "array" }
+      }
+    },
+    "resources": { "type": "object" },
+    "autoscaling": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": { "type": "integer", "minimum": 1 },
+        "maxReplicas": { "type": "integer", "minimum": 1 },
+        "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "description": "true, false, or \"auto\" (create the PDB when more than one replica is configured).",
+          "oneOf": [{ "type": "boolean" }, { "const": "auto" }]
+        },
+        "minAvailable": {
+          "oneOf": [{ "type": "integer", "minimum": 0 }, { "type": "string" }]
+        }
+      }
+    },
+    "podSecurityContext": { "type": "object" },
+    "containerSecurityContext": { "type": "object" },
+    "extraEnv": { "type": "array" },
+    "podAnnotations": { "type": "object" },
+    "podLabels": { "type": "object" },
+    "nodeSelector": { "type": "object" },
+    "tolerations": { "type": "array" },
+    "affinity": { "type": "object" }
+  }
+}

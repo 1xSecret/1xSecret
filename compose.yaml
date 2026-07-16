@@ -1,0 +1,85 @@
+# 1xSecret — self-hosting example (docker compose).
+#
+# This runs the app directly on :3000. For production, put a reverse proxy
+# with TLS (Caddy, nginx, Traefik, ...) in front and set TRUSTED_PROXIES to
+# the proxy's address range so client-IP resolution (SAFEGUARDED mode) works.
+#
+# Configuration: copy .env.example to .env and adjust. POSTGRES_PASSWORD is
+# required; everything else has sensible defaults.
+
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-onexsecret}
+      POSTGRES_DB: ${POSTGRES_DB:-onexsecret}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      # CRITICAL: postgres:18 moved the volume path. Mount at
+      # /var/lib/postgresql — NOT /var/lib/postgresql/data — or your data
+      # silently lands in the container layer and is lost on recreate.
+      - db-data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-onexsecret} -d ${POSTGRES_DB:-onexsecret}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      start_interval: 2s
+    restart: unless-stopped
+
+  # One-shot migration runner (advisory-locked, safe under concurrency).
+  # The app never migrates on boot.
+  migrate:
+    image: ghcr.io/1xsecret/1xsecret:latest
+    build: .
+    command: ["node", "scripts/migrate.mjs"]
+    restart: "no"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-onexsecret}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-onexsecret}}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    image: ghcr.io/1xsecret/1xsecret:latest
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-onexsecret}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-onexsecret}}
+      APP_URL: ${APP_URL:-}
+      DEFAULT_LANGUAGE: ${DEFAULT_LANGUAGE:-en}
+      ACCESS_MODE: ${ACCESS_MODE:-DANGEROUS-PUBLIC}
+      SAFE_NETWORKS: ${SAFE_NETWORKS:-}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      ALLOW_INDEXING: ${ALLOW_INDEXING:-false}
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+      # White-label / branding (all optional):
+      APP_NAME: ${APP_NAME:-}
+      LANDING_MODE: ${LANDING_MODE:-full}
+      SHOW_SOURCE_LINK: ${SHOW_SOURCE_LINK:-true}
+      SOURCE_URL: ${SOURCE_URL:-}
+      BRAND_LOGO_PATH: ${BRAND_LOGO_PATH:-}
+      MESSAGES_OVERRIDE_DIR: ${MESSAGES_OVERRIDE_DIR:-}
+    # Mount operator files read-only. Legal markdown (legal-notice-{en|de}.md,
+    # tos-{en|de}.md, privacy-{en|de}.md) into LEGAL_DIR (default /app/legal);
+    # a logo referenced by BRAND_LOGO_PATH; message overrides into
+    # MESSAGES_OVERRIDE_DIR (e.g. /app/message-overrides with de.json/en.json):
+    # volumes:
+    #   - ./legal:/app/legal:ro
+    #   - ./brand/logo.svg:/app/brand/logo.svg:ro          # set BRAND_LOGO_PATH=/app/brand/logo.svg
+    #   - ./message-overrides:/app/message-overrides:ro    # set MESSAGES_OVERRIDE_DIR=/app/message-overrides
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  db-data:

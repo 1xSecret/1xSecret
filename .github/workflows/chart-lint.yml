@@ -1,0 +1,65 @@
+# Lint and template-render the Helm chart on pull requests that touch it.
+# Publishing happens in release.yml (on `v*` tags), together with the image.
+
+name: Helm chart lint
+
+on:
+  pull_request:
+    paths:
+      - "deploy/helm/**"
+      - ".github/workflows/chart-lint.yml"
+
+permissions:
+  contents: read
+
+env:
+  CHART_DIR: deploy/helm/1xsecret
+
+jobs:
+  lint-test:
+    name: Lint and template
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v5
+
+      - name: helm lint
+        run: helm lint "$CHART_DIR" --strict
+
+      - name: helm template (default values)
+        run: helm template test "$CHART_DIR" > /dev/null
+
+      - name: helm template (dev database.url renders the chart Secret)
+        run: |
+          helm template test "$CHART_DIR" \
+            --set database.url=postgres://user:pass@db:5432/onexsecret \
+            | grep -q "name: test-1xsecret-db"
+
+      - name: helm template (CloudNativePG-style existingSecret)
+        run: |
+          helm template test "$CHART_DIR" \
+            --set database.existingSecret.name=db-app \
+            --set database.existingSecret.key=uri \
+            | grep -q "key: uri"
+
+      - name: helm template (legal documents, ingress, autoscaling)
+        run: |
+          helm template test "$CHART_DIR" \
+            --set-string 'legal.documents.legal-notice-de\.md=# Impressum' \
+            --set ingress.enabled=true \
+            --set autoscaling.enabled=true \
+            > /dev/null
+
+      - name: helm template (SAFEGUARDED requires safeNetworks)
+        run: |
+          helm template test "$CHART_DIR" \
+            --set config.accessMode=SAFEGUARDED \
+            --set config.safeNetworks=10.0.0.0/8 \
+            > /dev/null
+          # Must FAIL without safeNetworks (values.schema.json enforces it)
+          if helm template test "$CHART_DIR" \
+            --set config.accessMode=SAFEGUARDED > /dev/null 2>&1; then
+            echo "expected schema validation to fail" >&2
+            exit 1
+          fi

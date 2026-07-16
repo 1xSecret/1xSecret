@@ -1,0 +1,45 @@
+# Dependencies and build output (produced inside the image)
+node_modules
+.next
+out
+build
+coverage
+tsconfig.tsbuildinfo
+next-env.d.ts
+sdk/dist
+
+# VCS / editor / OS
+.git
+.gitignore
+.claude
+.vscode
+.idea
+.DS_Store
+
+# Environment files — runtime config is injected, never baked into the image
+.env
+.env.*
+*.pem
+
+# Docs, deployment manifests and examples (not needed in the image)
+README.md
+docs
+deploy
+legal-examples
+.github
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+compose.yaml
+compose.*.yaml
+docker-compose*.yml
+docker-compose*.yaml
+
+# Logs / scratch
+*.log
+npm-debug.log*
+.pnpm-debug.log*
+
+# NOTE: drizzle/ and scripts/ are intentionally NOT ignored —
+# the migration runner in the image needs them.

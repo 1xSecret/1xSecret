@@ -1,0 +1,161 @@
+# Release the app: one `vX.Y.Z` tag builds & publishes BOTH the multi-arch
+# Docker image and the Helm chart with matching versions, so a fresh
+# `helm install` pulls the image released alongside the chart.
+#
+# The image builds natively per platform (no QEMU) and is pushed by digest; a
+# merge job assembles the multi-arch manifest. The chart is then packaged with
+# its `version` and `appVersion` both set to the tag version and pushed to the
+# OCI registry.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY_IMAGE: ghcr.io/1xsecret/1xsecret
+  CHART_DIR: deploy/helm/1xsecret
+
+jobs:
+  build:
+    name: Build image (${{ matrix.platform }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Prepare platform slug
+        run: |
+          platform="${{ matrix.platform }}"
+          echo "PLATFORM_PAIR=${platform//\//-}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: ${{ matrix.platform }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=build-${{ env.PLATFORM_PAIR }}
+          cache-to: type=gha,scope=build-${{ env.PLATFORM_PAIR }},mode=max
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+
+      - name: Export digest
+        run: |
+          mkdir -p "${{ runner.temp }}/digests"
+          digest="${{ steps.build.outputs.digest }}"
+          touch "${{ runner.temp }}/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v7
+        with:
+          name: digests-${{ env.PLATFORM_PAIR }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge multi-arch manifest
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      # Default flavor `latest=auto` additionally tags `latest` on semver
+      # tag pushes (v1.2.3 -> 1.2.3, 1.2, latest, sha-<commit>).
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.REGISTRY_IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create manifest list and push
+        working-directory: ${{ runner.temp }}/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf "$REGISTRY_IMAGE@sha256:%s " *)
+
+      - name: Inspect image
+        run: docker buildx imagetools inspect "$REGISTRY_IMAGE:${{ steps.meta.outputs.version }}"
+
+  chart:
+    name: Package and push Helm chart
+    runs-on: ubuntu-latest
+    needs: merge
+    # Only publish the chart for real version tags (not workflow_dispatch).
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v5
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login ghcr.io --username "${{ github.actor }}" --password-stdin
+
+      # `appVersion` is set to the same version so the chart's default image tag
+      # (image.tag: "") resolves to the image built above — fresh installs get it.
+      - name: Package chart (version + appVersion from tag)
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          helm package "$CHART_DIR" \
+            --version "$VERSION" \
+            --app-version "$VERSION" \
+            --destination dist
+
+      - name: Push chart
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          helm push "dist/1xsecret-${VERSION}.tgz" oci://ghcr.io/1xsecret/charts

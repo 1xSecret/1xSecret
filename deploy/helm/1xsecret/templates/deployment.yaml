@@ -1,0 +1,136 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "1xsecret.fullname" . }}
+  labels:
+    {{- include "1xsecret.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "1xsecret.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        {{- /* Roll the pods whenever the rendered configuration changes. */}}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/legal: {{ include (print $.Template.BasePath "/configmap-legal.yaml") . | sha256sum }}
+        checksum/messages: {{ include (print $.Template.BasePath "/configmap-messages.yaml") . | sha256sum }}
+        {{- /*
+        Roll the pods when the chart-rendered DB Secret changes (e.g. an
+        updated database.url). Renders empty when an existingSecret is used —
+        that Secret is managed outside the chart, so it has no checksum here.
+        */}}
+        checksum/db-secret: {{ include (print $.Template.BasePath "/secret-db.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "1xsecret.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "1xsecret.serviceAccountName" . }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automount }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ include "1xsecret.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ include "1xsecret.fullname" . }}
+          env:
+            {{- include "1xsecret.databaseUrlEnv" . | nindent 12 }}
+            {{- if .Values.database.replicaUrls }}
+            - name: DATABASE_REPLICA_URLS
+              {{- if and .Values.database.url (not .Values.database.existingSecret.name) }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "1xsecret.fullname" . }}-db
+                  key: DATABASE_REPLICA_URLS
+              {{- else }}
+              value: {{ .Values.database.replicaUrls | quote }}
+              {{- end }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- /*
+          Liveness deliberately hits /api/health, which NEVER touches the
+          database: a DB blip must not make Kubernetes restart-storm every
+          replica. Readiness hits /api/ready (SELECT 1) so pods simply drop
+          from the Service while the database is unavailable.
+          */}}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: legal
+              mountPath: /app/legal
+              readOnly: true
+            {{- if .Values.branding.logo.existingConfigMap }}
+            - name: brand-logo
+              mountPath: /app/brand
+              readOnly: true
+            {{- end }}
+            {{- if include "1xsecret.hasMessageOverrides" . }}
+            - name: message-overrides
+              mountPath: /app/message-overrides
+              readOnly: true
+            {{- end }}
+      volumes:
+        - name: legal
+          configMap:
+            name: {{ include "1xsecret.legalConfigMapName" . }}
+            {{- /* Optional: deploying without legal documents is valid. */}}
+            optional: true
+        {{- if .Values.branding.logo.existingConfigMap }}
+        - name: brand-logo
+          configMap:
+            name: {{ .Values.branding.logo.existingConfigMap }}
+        {{- end }}
+        {{- if include "1xsecret.hasMessageOverrides" . }}
+        - name: message-overrides
+          configMap:
+            name: {{ include "1xsecret.messagesConfigMapName" . }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

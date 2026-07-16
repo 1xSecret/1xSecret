@@ -1,0 +1,40 @@
+{{- /*
+Non-secret application configuration, consumed by the pods via `envFrom`.
+Secrets (DATABASE_URL) are injected separately via secretKeyRef.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "1xsecret.fullname" . }}
+  labels:
+    {{- include "1xsecret.labels" . | nindent 4 }}
+data:
+  {{- with .Values.config.appUrl }}
+  APP_URL: {{ . | quote }}
+  {{- end }}
+  DEFAULT_LANGUAGE: {{ .Values.config.defaultLanguage | quote }}
+  ACCESS_MODE: {{ .Values.config.accessMode | quote }}
+  {{- with .Values.config.safeNetworks }}
+  SAFE_NETWORKS: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.config.trustedProxies }}
+  TRUSTED_PROXIES: {{ . | quote }}
+  {{- end }}
+  ALLOW_INDEXING: {{ .Values.config.allowIndexing | toString | quote }}
+  RETENTION_DAYS: {{ .Values.config.retentionDays | toString | quote }}
+  LEGAL_DIR: "/app/legal"
+  {{- /* Branding / white-label */}}
+  {{- with .Values.branding.appName }}
+  APP_NAME: {{ . | quote }}
+  {{- end }}
+  LANDING_MODE: {{ .Values.branding.landingMode | quote }}
+  SHOW_SOURCE_LINK: {{ .Values.branding.showSourceLink | toString | quote }}
+  {{- with .Values.branding.sourceUrl }}
+  SOURCE_URL: {{ . | quote }}
+  {{- end }}
+  {{- if or .Values.branding.messageOverrides .Values.branding.messagesExistingConfigMap }}
+  MESSAGES_OVERRIDE_DIR: "/app/message-overrides"
+  {{- end }}
+  {{- if .Values.branding.logo.existingConfigMap }}
+  BRAND_LOGO_PATH: "/app/brand/{{ .Values.branding.logo.key }}"
+  {{- end }}

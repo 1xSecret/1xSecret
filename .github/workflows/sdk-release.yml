@@ -1,0 +1,52 @@
+# Publish @1xsecret/sdk to npm on `sdk-vX.Y.Z` tags.
+#
+# The SDK has its own release cadence (it changes far less often than the app).
+# Its MAJOR version tracks the app — a breaking API or crypto-scheme change bumps
+# both — while minor/patch are independent. The tag version must match
+# sdk/package.json.
+
+name: Publish SDK
+
+on:
+  push:
+    tags:
+      - "sdk-v*"
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Enable pnpm via corepack
+        run: npm install -g corepack@latest && corepack enable pnpm
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify tag matches sdk/package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#sdk-v}"
+          PKG_VERSION="$(node -p "require('./sdk/package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) != sdk/package.json version ($PKG_VERSION)" >&2
+            exit 1
+          fi
+
+      - name: Build SDK
+        run: pnpm -F @1xsecret/sdk build
+
+      - name: Publish to npm (with provenance)
+        run: pnpm -F @1xsecret/sdk publish --provenance --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

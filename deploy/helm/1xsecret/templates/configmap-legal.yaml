@@ -1,0 +1,21 @@
+{{- /*
+Legal markdown documents (legal notice / terms of service), mounted
+read-only at /app/legal. Only rendered when documents are provided inline
+and no existing ConfigMap is referenced.
+*/}}
+{{- if and .Values.legal.documents (not .Values.legal.existingConfigMap) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "1xsecret.fullname" . }}-legal
+  labels:
+    {{- include "1xsecret.labels" . | nindent 4 }}
+data:
+  {{- /*
+  Serialize the whole map with toYaml so every document is preserved verbatim,
+  including filenames with dots and content whose first line is indented or
+  contains YAML-significant characters — a hand-rolled block scalar corrupts
+  those.
+  */}}
+  {{- toYaml .Values.legal.documents | nindent 2 }}
+{{- end }}

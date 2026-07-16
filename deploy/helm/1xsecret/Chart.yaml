@@ -1,0 +1,18 @@
+apiVersion: v2
+name: 1xsecret
+description: >-
+  1xSecret — share secrets via one-time links. Secrets are encrypted
+  end-to-end in the browser; the server only ever stores ciphertext.
+type: application
+# Chart version (SemVer). Bumped independently of the application.
+version: 0.1.0
+# Application (image) version. Used as the default image tag.
+appVersion: "0.1.0"
+home: https://github.com/1xSecret/1xSecret
+sources:
+  - https://github.com/1xSecret/1xSecret
+keywords:
+  - secrets
+  - one-time-secret
+  - security
+  - self-hosted

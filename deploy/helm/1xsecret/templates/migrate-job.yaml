@@ -1,0 +1,77 @@
+{{- /*
+Database migration Job, run as a Helm hook BEFORE install/upgrade manifests
+are applied. The runner (scripts/migrate.mjs) holds a Postgres advisory
+lock, so concurrent executions (CI retries, parallel releases) are safe.
+
+Hook-delete-policy notes:
+  - `before-hook-creation` is MANDATORY: Job specs are immutable, so a
+    leftover Job from a previous release would make the next upgrade fail
+    when Helm tries to recreate it. This policy deletes the old Job right
+    before the new one is created.
+  - `hook-succeeded` removes successful Jobs; FAILED Jobs are intentionally
+    kept around so their logs can be inspected:
+      kubectl logs job/<release>-migrate
+*/}}
+{{- if .Values.migrations.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "1xsecret.migrateName" . }}
+  labels:
+    {{- include "1xsecret.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "0"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- /*
+        Deliberately NOT the app selector labels: the Service (and PDB)
+        select on name+instance, and the migration pod must never receive
+        traffic or count towards disruption budgets.
+        */}}
+        app.kubernetes.io/name: {{ include "1xsecret.name" . }}-migrate
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: migrate
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- /*
+      No serviceAccountName: the chart's ServiceAccount is a regular
+      resource and does not exist yet while pre-install hooks run, so the
+      Job uses the namespace default (with no API token mounted).
+      */}}
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "1xsecret.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          command: ["node", "scripts/migrate.mjs"]
+          env:
+            {{- include "1xsecret.databaseUrlEnv" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}
