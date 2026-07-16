@@ -1,9 +1,13 @@
-# Publish @1xsecret/sdk to npm on `sdk-vX.Y.Z` tags.
+# Publish @1xsecret/sdk to npm on `sdk-vX.Y.Z` tags via OIDC trusted publishing
+# (no long-lived NPM_TOKEN). Prerequisite: a trusted publisher configured on
+# npmjs.com for the @1xsecret/sdk package, pointing at repo 1xSecret/1xSecret
+# and this workflow file (sdk-release.yml). npm has no "pending" publishers, so
+# the package must be published once manually before OIDC releases can run.
 #
 # The SDK has its own release cadence (it changes far less often than the app).
 # Its MAJOR version tracks the app — a breaking API or crypto-scheme change bumps
 # both — while minor/patch are independent. The tag version must match
-# sdk/package.json.
+# sdk/package.json. Provenance is generated automatically by OIDC publishing.
 
 name: Publish SDK
 
@@ -14,7 +18,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # required for OIDC trusted publishing (and provenance)
 
 jobs:
   publish:
@@ -27,9 +31,13 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 24 # >= 22.14.0, required by trusted publishing
           cache: pnpm
           registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm CLI >= 11.5.1; the bundled npm may be older.
+      - name: Ensure npm >= 11.5.1
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -46,7 +54,8 @@ jobs:
       - name: Build SDK
         run: pnpm -F @1xsecret/sdk build
 
-      - name: Publish to npm (with provenance)
-        run: pnpm -F @1xsecret/sdk publish --provenance --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # OIDC trusted publishing: no NODE_AUTH_TOKEN. npm exchanges the GitHub
+      # OIDC token for a short-lived credential and auto-attaches provenance.
+      - name: Publish to npm (OIDC trusted publishing)
+        working-directory: sdk
+        run: npm publish
