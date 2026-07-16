@@ -10,11 +10,19 @@
     "sdk"
   ],
   "license": "MIT",
+  "author": "1xSecret contributors",
   "homepage": "https://github.com/1xSecret/1xSecret/tree/main/sdk",
   "repository": {
     "type": "git",
-    "url": "https://github.com/1xSecret/1xSecret.git",
+    "url": "git+https://github.com/1xSecret/1xSecret.git",
     "directory": "sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/1xSecret/1xSecret/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   },
   "type": "module",
   "exports": {
@@ -39,7 +47,8 @@
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "@noble/curves": "^2.2.0",
