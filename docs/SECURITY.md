@@ -56,7 +56,7 @@ authSeed  = HKDF-SHA256(ikm, salt, info="1xsecret/v1/auth")  -> Ed25519 seed (32
 
 - AES-256-GCM with a fresh random **12-byte nonce** per encryption.
 - Domain-separation AAD: `"1xsecret/v1"`.
-- Plaintext is UTF-8; the client enforces a 500-character maximum, the server caps the
+- Plaintext is UTF-8; the client enforces a 1000-character maximum, the server caps the
   sealed ciphertext at 8192 bytes as a sanity bound.
 
 ### The link
@@ -202,7 +202,7 @@ stored while serving honest code, since it never received key material.
 ## Intentionally not protected
 
 - **Ciphertext length.** AES-GCM preserves plaintext length (plus a 16-byte tag), so
-  the server learns the approximate length of a secret (bounded by the 500-character
+  the server learns the approximate length of a secret (bounded by the 1000-character
   maximum). Padding was deliberately omitted.
 - **Existence, to link holders.** `GET /api/secrets/{id}/status` tells whoever knows an
   id whether the secret is still available. Ids are unguessable ~126-bit capabilities,

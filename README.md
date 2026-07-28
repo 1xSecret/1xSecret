@@ -5,7 +5,7 @@
 
 Share secrets — OAuth client secrets, initial passwords, shared keys — as **end-to-end
 encrypted one-time links** instead of leaving them in mailboxes forever. Secrets (up to
-500 characters) are encrypted in the browser before anything is sent; the server only
+1000 characters) are encrypted in the browser before anything is sent; the server only
 ever stores ciphertext and can never decrypt it. Every secret can be viewed exactly
 once, retrieval is protected by a cryptographic challenge-response so link scanners can
 never burn a secret, and the creator gets a read receipt. Open source, self-hostable

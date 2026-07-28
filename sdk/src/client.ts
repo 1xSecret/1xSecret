@@ -40,7 +40,7 @@ export interface OneXSecretClientOptions {
 }
 
 export interface SealOptions {
-  /** The secret text to share (max 500 characters). */
+  /** The secret text to share (max 1000 characters). */
   text: string;
   /**
    * Optional retrieval password. Folded into the encryption key on this

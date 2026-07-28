@@ -1,6 +1,6 @@
 {
   "name": "@1xsecret/sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Client SDK for 1xSecret — seal and reveal one-time, end-to-end-encrypted secrets from Node.js. Permissively licensed (MIT) for use in any project, including closed-source.",
   "keywords": [
     "1xsecret",

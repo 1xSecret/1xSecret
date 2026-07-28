@@ -30,7 +30,7 @@ const ARGON2_ITERATIONS = 2;
 const ARGON2_PARALLELISM = 1;
 const ARGON2_OUTPUT_BYTES = 32;
 
-export const MAX_SECRET_LENGTH = 500;
+export const MAX_SECRET_LENGTH = 1000;
 
 const BASE64URL_RE = /^[A-Za-z0-9_-]*$/;
 
