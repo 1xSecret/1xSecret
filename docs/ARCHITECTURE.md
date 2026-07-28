@@ -1,6 +1,6 @@
 # 1xSecret — Architecture
 
-1xSecret is a self-hostable web service for sharing secrets (text up to 500 characters)
+1xSecret is a self-hostable web service for sharing secrets (text up to 1000 characters)
 via one-time links. Secrets are encrypted **end-to-end in the browser**; the server only
 ever stores ciphertext and can never decrypt it. Every secret can be viewed exactly once.
 

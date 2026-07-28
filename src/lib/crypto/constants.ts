@@ -34,7 +34,7 @@ export const ARGON2_ITERATIONS = 2;
 export const ARGON2_PARALLELISM = 1;
 export const ARGON2_OUTPUT_BYTES = 32;
 
-export const MAX_SECRET_LENGTH = 500;
+export const MAX_SECRET_LENGTH = 1000;
 
 /** Server-side sanity cap for the sealed payload (base64url ciphertext). */
 export const MAX_CIPHERTEXT_BYTES = 8192;
