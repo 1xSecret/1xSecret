@@ -2,6 +2,10 @@
 # Docker image and the Helm chart with matching versions, so a fresh
 # `helm install` pulls the image released alongside the chart.
 #
+# A verify job fails the release up front unless package.json and the chart's
+# version/appVersion match the tag: the repo at a release tag must stay
+# consistent with what the tag publishes (see CONTRIBUTING.md "Releasing").
+#
 # The image builds natively per platform (no QEMU) and is pushed by digest; a
 # merge job assembles the multi-arch manifest. The chart is then packaged with
 # its `version` and `appVersion` both set to the tag version and pushed to the
@@ -24,9 +28,42 @@ env:
   CHART_DIR: deploy/helm/1xsecret
 
 jobs:
+  # A release tag must match the versions committed to the repo: appVersion is
+  # the chart's default image tag, so a source checkout of a release tag has to
+  # reference the image that tag publishes. Fails the whole release before
+  # anything is built or pushed. No-op for workflow_dispatch runs.
+  verify:
+    name: Verify versions match the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify tag matches package.json and Chart.yaml
+        run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) ;;
+            *) echo "Not a release tag ($GITHUB_REF); nothing to verify."; exit 0 ;;
+          esac
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          CHART_VERSION="$(sed -n 's/^version:[[:space:]]*//p' "$CHART_DIR/Chart.yaml" | tr -d '" ')"
+          CHART_APP_VERSION="$(sed -n 's/^appVersion:[[:space:]]*//p' "$CHART_DIR/Chart.yaml" | tr -d '" ')"
+          fail=0
+          check() {
+            if [ "$2" != "$TAG_VERSION" ]; then
+              echo "$1 ($2) != tag version ($TAG_VERSION)" >&2
+              fail=1
+            fi
+          }
+          check "package.json version" "$PKG_VERSION"
+          check "Chart.yaml version" "$CHART_VERSION"
+          check "Chart.yaml appVersion" "$CHART_APP_VERSION"
+          exit "$fail"
+
   build:
     name: Build image (${{ matrix.platform }})
     runs-on: ${{ matrix.runner }}
+    needs: verify
     strategy:
       fail-fast: false
       matrix:

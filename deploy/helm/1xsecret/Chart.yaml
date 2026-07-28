@@ -4,10 +4,12 @@ description: >-
   1xSecret — share secrets via one-time links. Secrets are encrypted
   end-to-end in the browser; the server only ever stores ciphertext.
 type: application
-# Chart version (SemVer). Bumped independently of the application.
-version: 0.1.0
+# Chart version (SemVer). Kept in lockstep with appVersion: releases publish
+# the chart with both set to the tag version, and release.yml fails the
+# release if this file does not match the tag.
+version: 0.2.1
 # Application (image) version. Used as the default image tag.
-appVersion: "0.1.0"
+appVersion: "0.2.1"
 home: https://github.com/1xSecret/1xSecret
 sources:
   - https://github.com/1xSecret/1xSecret
