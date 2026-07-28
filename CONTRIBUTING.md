@@ -100,6 +100,29 @@ it in sync with behavior changes.
   branching.
 - Message keys are type-checked; `pnpm typecheck` catches missing keys.
 
+## Releasing
+
+App releases are tag-driven. To release version `X.Y.Z`:
+
+1. On `main`, set the version to `X.Y.Z` in **`package.json`** and in
+   **`deploy/helm/1xsecret/Chart.yaml`** (both `version` and `appVersion`), in one
+   release commit.
+2. Tag that commit and push the tag:
+
+   ```bash
+   git tag vX.Y.Z && git push origin vX.Y.Z
+   ```
+
+The `Release` workflow builds the multi-arch image and publishes the Helm chart,
+both versioned `X.Y.Z`. Its `verify` job fails the release before anything is
+published if `package.json` or `Chart.yaml` does not match the tag — `appVersion`
+is the chart's default image tag, so a source checkout of a release tag must
+reference the image that tag publishes. If verification fails, fix the versions
+on `main` and tag the next patch version; never move or delete a pushed tag.
+
+The SDK releases independently via `sdk-vX.Y.Z` tags, which must match
+`sdk/package.json` (see `.github/workflows/sdk-release.yml`).
+
 ## Security issues
 
 Do not open public issues for vulnerabilities — see [SECURITY.md](./SECURITY.md).
